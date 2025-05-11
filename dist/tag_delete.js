@@ -1,10 +1,10 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import fs from 'fs';
-import path from 'path';
-import config from '../config/config.json';
-const tagsPath = path.resolve('./data/tags.json');
-if (!fs.existsSync(tagsPath))
-    fs.writeFileSync(tagsPath, '{}');
+import ftp from 'basic-ftp';
+import config from './config/config';
+const ftpHost = "ftp.wolfyz.fr";
+const ftpUser = "u266426828.upload";
+const ftpPassword = "Mis45tig9ri!";
+const remoteTagsDir = "/tags";
 const logChannelId = process.env.LOG_CHANNEL_ID;
 export const data = new SlashCommandBuilder()
     .setName('tag_delete')
@@ -14,7 +14,6 @@ export const data = new SlashCommandBuilder()
     .setRequired(true));
 export async function execute(interaction) {
     const alias = interaction.options.getString('alias', true);
-    const tags = JSON.parse(fs.readFileSync(tagsPath, 'utf-8'));
     const allowed = config.allowed_tags.includes(interaction.user.id);
     const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
     if (!allowed && !isAdmin) {
@@ -23,26 +22,34 @@ export async function execute(interaction) {
             ephemeral: true
         });
     }
-    if (!tags[alias]) {
-        return await interaction.reply({
-            content: '❌ This tag does not exist.',
+    const client = new ftp.Client();
+    client.ftp.verbose = false;
+    try {
+        await client.access({
+            host: ftpHost,
+            user: ftpUser,
+            password: ftpPassword,
+            secure: false
+        });
+        await client.remove(`${remoteTagsDir}/${alias}.json`);
+        await interaction.reply({
+            content: `✅ Tag \`${alias}\` has been deleted from the server.`,
             ephemeral: true
         });
-    }
-    delete tags[alias];
-    fs.writeFileSync(tagsPath, JSON.stringify(tags, null, 2));
-    await interaction.reply({
-        content: `✅ Tag \`${alias}\` has been deleted.`,
-        ephemeral: true
-    });
-    // Logging
-    try {
+        // Logging
         const logChannel = await interaction.client.channels.fetch(logChannelId);
         if (logChannel?.isTextBased() && 'send' in logChannel) {
             await logChannel.send(`🗑️ Tag \`${alias}\` was deleted by <@${interaction.user.id}>`);
         }
     }
     catch (err) {
-        console.error('⚠️ Failed to log tag deletion:', err);
+        console.error('❌ FTP deletion error:', err);
+        await interaction.reply({
+            content: '❌ Failed to delete this tag (maybe it does not exist).',
+            ephemeral: true
+        });
+    }
+    finally {
+        client.close();
     }
 }

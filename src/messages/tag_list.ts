@@ -6,12 +6,12 @@ import {
     ButtonStyle,
     ComponentType
   } from 'discord.js';
-  import fs from 'fs';
-  import path from 'path';
+  import ftp from 'basic-ftp';
   
-  const tagsPath = path.resolve('./data/tags.json');
-  if (!fs.existsSync(tagsPath)) fs.writeFileSync(tagsPath, '{}');
-  
+  const ftpHost = "ftp.wolfyz.fr";
+  const ftpUser = "u266426828.upload";
+  const ftpPassword = "Mis45tig9ri!";
+  const remoteTagsDir = "/tags";
   const logChannelId = process.env.LOG_CHANNEL_ID!;
   const ITEMS_PER_PAGE = 20;
   
@@ -20,8 +20,33 @@ import {
     .setDescription('List all saved tags');
   
   export async function execute(interaction: ChatInputCommandInteraction) {
-    const tags = JSON.parse(fs.readFileSync(tagsPath, 'utf-8'));
-    const aliases = Object.keys(tags);
+    const client = new ftp.Client();
+    client.ftp.verbose = false;
+  
+    let aliases: string[] = [];
+  
+    try {
+      await client.access({
+        host: ftpHost,
+        user: ftpUser,
+        password: ftpPassword,
+        secure: false
+      });
+  
+      const files = await client.list(remoteTagsDir);
+      aliases = files
+        .filter(file => file.name.endsWith('.json'))
+        .map(file => file.name.replace('.json', ''))
+        .sort();
+    } catch (err) {
+      console.error('❌ FTP listing error:', err);
+      return await interaction.reply({
+        content: '❌ Failed to retrieve tag list.',
+        ephemeral: true
+      });
+    } finally {
+      client.close();
+    }
   
     if (aliases.length === 0) {
       return await interaction.reply({ content: 'No tags saved yet.', ephemeral: true });
