@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { handleTagCreateModal } from './events/interactionCreate.js'; // veille à ce que l'extension .js existe à l'exécution
 dotenv.config({ path: './config/.env' });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,10 +17,10 @@ const ACTIVITY_TYPE = (process.env.ACTIVITY_TYPE || 'playing').toLowerCase();
 const ACTIVITY_NAME = process.env.ACTIVITY_NAME || '';
 const STREAM_URL = process.env.STREAM_URL || '';
 client.once('ready', async () => {
-    console.log(`✅ Connecté en tant que ${client.user?.tag}`);
+    console.log(`✅ Logged in as ${client.user?.tag}`);
     const logChannel = await client.channels.fetch(logChannelId);
     if (logChannel?.isTextBased() && 'send' in logChannel) {
-        await logChannel.send(`✅ Bot started : ${client.user?.tag}`);
+        await logChannel.send(`✅ Bot started: ${client.user?.tag}`);
     }
     const activityTypeMap = {
         playing: ActivityType.Playing,
@@ -40,11 +41,15 @@ client.once('ready', async () => {
 });
 client.on('guildCreate', async (guild) => {
     if (!allowedServers.includes(guild.id)) {
-        console.log(`❌ Not allowed server : ${guild.name} (${guild.id}). Disconnected.`);
+        console.log(`❌ Not allowed server: ${guild.name} (${guild.id}). Leaving...`);
         await guild.leave();
     }
 });
 client.on('interactionCreate', async (interaction) => {
+    if (interaction.isModalSubmit()) {
+        await handleTagCreateModal(interaction);
+        return;
+    }
     if (!interaction.isChatInputCommand())
         return;
     const commandPath = path.join(__dirname, `${interaction.commandName}.js`);
