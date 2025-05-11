@@ -2,8 +2,13 @@
 
 services:
   bot:
-    build: .
     container_name: wolfyz-upload-bot
-    env_file:
-      - .env
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./config:/app/config:ro
+    working_dir: /app

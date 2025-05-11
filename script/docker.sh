@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd ../ 
+
 echo "🔄 Build de l'image Docker avec docker-compose..."
 docker compose build
 

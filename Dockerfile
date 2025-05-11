@@ -4,14 +4,20 @@ FROM node:22-slim
 # Crée un répertoire de travail
 WORKDIR /app
 
-# Copie uniquement les fichiers nécessaires (build + config)
-COPY user.json ./
-COPY dist/ ./dist/
-COPY package.json package-lock.json ./
-COPY .env ./
+# Copie les fichiers de configuration
+COPY config/ ./config/
 
-# Installe uniquement les dépendances nécessaires au runtime
+# Copie les fichiers de build (TypeScript compilé)
+COPY dist/ ./dist/
+
+# Copie les fichiers package pour installation
+COPY package.json package-lock.json ./
+
+# Installe uniquement les dépendances nécessaires à l'exécution
 RUN npm install --omit=dev --no-audit
+
+# Déploie les commandes slash lors de la création du conteneur
+RUN node dist/deploy-commands.js || echo "⚠️ Échec du déploiement des commandes (peut être déjà fait)"
 
 # Lancer le bot
 CMD ["node", "dist/index.js"]

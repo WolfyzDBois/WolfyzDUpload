@@ -1,24 +1,39 @@
-import { REST, Routes, SlashCommandBuilder } from 'discord.js';
+import { REST, Routes } from 'discord.js';
+import { readdirSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-dotenv.config();
 
-const commands = [
-  new SlashCommandBuilder()
-    .setName('upload')
-    .setDescription('Upload un fichier ou un lien vers le FTP')
-    .addAttachmentOption(opt => opt.setName('fichier').setDescription('Fichier à uploader').setRequired(false))
-    .addStringOption(opt => opt.setName('lien').setDescription('Lien vers un fichier').setRequired(false))
-    .addStringOption(opt => opt.setName('name').setDescription('Nom du fichier sans extension').setRequired(false))
-    .toJSON()
-];
+dotenv.config({ path: './config/.env' });
+
+// Résout __dirname en mode ES module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Commandes à charger depuis src/
+const commands: any[] = [];
+const commandsPath = path.join(__dirname);
+const commandFiles = ['upload.js', 'list.js', 'info.js', 'delete.js'];
+
+for (const file of commandFiles) {
+  const filePath = path.join(commandsPath, file);
+  const { command } = await import(`file://${filePath}`);
+  if (command && command.data) {
+    commands.push(command.data.toJSON());
+  }
+}
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN!);
 
 (async () => {
   try {
-    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID!), { body: commands });
-    console.log('✅ Commande enregistrée.');
+    console.log('🌀 Déploiement des commandes slash...');
+    await rest.put(
+      Routes.applicationCommands(process.env.CLIENT_ID!),
+      { body: commands }
+    );
+    console.log('✅ Commandes enregistrées avec succès.');
   } catch (error) {
-    console.error(error);
+    console.error('❌ Échec du déploiement des commandes :', error);
   }
 })();
