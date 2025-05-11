@@ -11,22 +11,26 @@ import { randomUUID } from 'crypto';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 
-import type { ChatInputCommandInteraction } from 'discord.js';
+import type { ChatInputCommandInteraction, TextBasedChannel } from 'discord.js';
 
 dotenv.config();
 
-// Charger les utilisateurs autorisés depuis user.json
 const userConfig = JSON.parse(readFileSync('user.json', 'utf-8'));
 const allowedUsers: string[] = userConfig.allowed_users;
 
-const LOG_CHANNEL_ID = '1371116785595711508';
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID!;
+if (!LOG_CHANNEL_ID) throw new Error('❌ LOG_CHANNEL_ID manquant dans .env');
+const MAX_FILE_MB = Number(process.env.MAX_FILE_MB || 0); // 0 = illimité
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 async function sendLog(message: string) {
   const channel = await client.channels.fetch(LOG_CHANNEL_ID);
-  if (channel && channel.isTextBased()) {
-    channel.send(message).catch(console.error);
+  if (channel && typeof channel.isTextBased === 'function' && channel.isTextBased()) {
+    const textChannel = channel as TextBasedChannel;
+    await textChannel.send(message).catch(console.error);
+  } else {
+    console.warn('❗ Impossible d’envoyer un log : canal introuvable ou non textuel.');
   }
 }
 
@@ -65,6 +69,16 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
+  // Vérification de taille (si fichier Discord)
+  if (file && MAX_FILE_MB > 0 && file.size / (1024 * 1024) > MAX_FILE_MB) {
+    await typedInteraction.reply({
+      content: `❌ Le fichier est trop gros. Taille maximale : ${MAX_FILE_MB} Mo.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    await sendLog(`⚠️ Upload refusé (fichier trop gros) par <@${typedInteraction.user.id}>`);
+    return;
+  }
+
   await typedInteraction.deferReply();
 
   const downloadUrl = file?.url ?? url!;
@@ -77,6 +91,16 @@ client.on('interactionCreate', async (interaction) => {
   if (!res.ok || !res.body) {
     await typedInteraction.editReply('❌ Échec du téléchargement.');
     return;
+  }
+
+  // Taille depuis un lien (si MAX_FILE_MB > 0 et Content-Length est dispo)
+  if (!file && MAX_FILE_MB > 0) {
+    const contentLength = res.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) / (1024 * 1024) > MAX_FILE_MB) {
+      await typedInteraction.editReply(`❌ Le fichier est trop gros. Taille maximale : ${MAX_FILE_MB} Mo.`);
+      await sendLog(`⚠️ Upload refusé (lien trop gros) par <@${typedInteraction.user.id}>`);
+      return;
+    }
   }
 
   const stream = createWriteStream(tempPath);
