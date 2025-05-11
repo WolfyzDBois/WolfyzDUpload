@@ -1,5 +1,16 @@
 ## WolfyzDUpload
 
+### Deploy with Docker
+
+```sh
+git clone git@github.com:WolfyzDBois/WolfyzDUpload.git
+cd WolfyzDUpload/script
+chmod +x deploy.sh stop.sh restart.sh
+./deploy.sh
+```
+
+You can use restart and stop to start and stop the bot. 
+
 1. Clone this repositorie or download archive
 
 2. Install dependecies
