@@ -1,48 +1,71 @@
 ## WolfyzDUpload
 
+### Commands
+
+/upload with file, or link, and name
+
 ### Deploy with Docker
 
 ```sh
 git clone git@github.com:WolfyzDBois/WolfyzDUpload.git
 cd WolfyzDUpload/script
 chmod +x deploy.sh stop.sh restart.sh
+mv .env.example .env
+nano .env # configure the environment
+# To edit the list of allowed users: nano user.json
 ./deploy.sh
 ```
 
-You can use restart and stop to start and stop the bot. 
+You can use `restart.sh` and `stop.sh` to restart or stop the bot.
 
-1. Clone this repositorie or download archive
+---
 
-2. Install dependecies
+### Manual Deployment (without Docker)
+
+1. Clone the repository or download the archive
+
+2. Install dependencies:
 
 ```sh
 npm install
 ```
 
-3. Change configuration (with .env.example file)
+3. Configure the environment
 
-You can find user.json for the configuration of allowed people to use the bot. 
+Copy `.env.example` to `.env`, then edit it.
+You can also edit `user.json` to configure allowed user IDs.
 
+4. Build the project (if not already built):
 
-4. Start the bot 
+```sh
+npx tsc
+```
 
-You need to deploy command the first thing (and if you add option in the command or new commands)
+5. Deploy commands (once, or when modifying commands):
 
 ```sh
 node dist/deploy-command.js
 ```
 
+6. Start the bot:
+
 ```sh
 node dist/index.js
 ```
 
-## Dev
+---
 
-You can find the code in `src/` folder.
+## Development
 
-To execute the bot without build (in TS) : 
+Source code is located in the `src/` folder.
 
-For build : 
+To run the bot without building (using TypeScript directly):
+
+```sh
+npx ts-node src/index.ts
+```
+
+To build the bot into the `dist/` folder:
 
 ```sh
 npx tsc

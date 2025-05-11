@@ -5,6 +5,7 @@ FROM node:20-slim
 WORKDIR /app
 
 # Copie uniquement les fichiers nécessaires (build + config)
+COPY user.json ./
 COPY dist/ ./dist/
 COPY package.json package-lock.json ./
 COPY .env ./
