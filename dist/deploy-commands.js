@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 // Commandes à charger depuis src/
 const commands = [];
 const commandsPath = path.join(__dirname);
-const commandFiles = ['upload.js', 'list.js', 'info.js', 'delete.js'];
+const commandFiles = ['upload.js', 'list.js', 'info.js', 'delete.js', 'stop.js'];
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const { command } = await import(`file://${filePath}`);

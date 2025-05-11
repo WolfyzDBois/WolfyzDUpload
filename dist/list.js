@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, } from 'discord.js';
 import { Client as FTPClient } from 'basic-ftp';
 import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
@@ -16,21 +16,32 @@ async function sendLog(interaction, message) {
         console.warn('Unable to send log:', err);
     }
 }
+function generateEmbed(links, page, perPage) {
+    const totalPages = Math.ceil(links.length / perPage);
+    const start = page * perPage;
+    const end = start + perPage;
+    const pageLinks = links.slice(start, end);
+    return new EmbedBuilder()
+        .setTitle(`📂 Liste des fichiers (page ${page + 1}/${totalPages})`)
+        .setDescription(pageLinks.map((link, i) => `**${start + i + 1}.** [Fichier](${link})`).join('\n') || '*Aucun fichier*')
+        .setColor(0x00AEFF);
+}
 export const command = {
     data: new SlashCommandBuilder()
         .setName('list')
-        .setDescription('List files hosted on the FTP server (admin only)'),
+        .setDescription('Lister les fichiers hébergés (admin uniquement)'),
     async execute(interaction) {
         if (!adminList.includes(interaction.user.id)) {
             await interaction.reply({
-                content: '❌ You are not authorized to use this command.',
+                content: '❌ Vous n’êtes pas autorisé à utiliser cette commande.',
                 ephemeral: true,
             });
             return;
         }
-        await interaction.deferReply({ ephemeral: true }); // Important pour éviter expiration
+        await interaction.deferReply({ ephemeral: true });
         const ftp = new FTPClient();
         ftp.ftp.verbose = false;
+        const perPage = 20;
         try {
             await ftp.access({
                 host: process.env.FTP_HOST,
@@ -40,16 +51,43 @@ export const command = {
             });
             await ftp.cd(process.env.FTP_DIRECTORY || '/');
             const files = await ftp.list();
-            const fileLinks = files
+            const links = files
                 .filter(file => file.isFile)
                 .map(file => `${process.env.UPLOAD_DOMAIN}/${file.name}`);
-            const response = fileLinks.length > 0 ? fileLinks.join('\n') : 'No files found.';
-            await interaction.editReply(response);
-            await sendLog(interaction, `📂 /list used by <@${interaction.user.id}>`);
+            if (links.length === 0) {
+                await interaction.editReply('Aucun fichier trouvé.');
+                return;
+            }
+            let page = 0;
+            const embed = generateEmbed(links, page, perPage);
+            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('prev').setLabel('⬅️').setStyle(ButtonStyle.Primary).setDisabled(true), new ButtonBuilder().setCustomId('next').setLabel('➡️').setStyle(ButtonStyle.Primary).setDisabled(links.length <= perPage));
+            const reply = await interaction.editReply({ embeds: [embed], components: [row] });
+            const collector = reply.createMessageComponentCollector({
+                componentType: ComponentType.Button,
+                time: 60_000,
+            });
+            collector.on('collect', async (i) => {
+                if (i.user.id !== interaction.user.id) {
+                    await i.reply({ content: '❌ Ce menu n’est pas pour vous.', ephemeral: true });
+                    return;
+                }
+                if (i.customId === 'prev')
+                    page--;
+                if (i.customId === 'next')
+                    page++;
+                const newEmbed = generateEmbed(links, page, perPage);
+                row.components[0].setDisabled(page <= 0);
+                row.components[1].setDisabled((page + 1) * perPage >= links.length);
+                await i.update({ embeds: [newEmbed], components: [row] });
+            });
+            collector.on('end', async () => {
+                await interaction.editReply({ components: [] });
+            });
+            await sendLog(interaction, `📂 /list utilisé par <@${interaction.user.id}>`);
         }
         catch (err) {
             console.error('FTP list error:', err);
-            await interaction.editReply('❌ Failed to list files on the FTP server.');
+            await interaction.editReply('❌ Impossible de lister les fichiers FTP.');
         }
         finally {
             ftp.close();
