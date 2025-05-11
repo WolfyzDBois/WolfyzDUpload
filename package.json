@@ -1,0 +1,27 @@
+{
+  "name": "wolfyzdupload",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "go": "npm install && ts-node src/deploy-commands.ts",
+    "start": "ts-node src/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@discordjs/rest": "^2.5.0",
+    "basic-ftp": "^5.0.5",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0",
+    "undici": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
