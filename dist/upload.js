@@ -9,7 +9,8 @@ import { createWriteStream, unlinkSync, readFileSync } from 'fs';
 import ftp from 'basic-ftp';
 import dotenv from 'dotenv';
 dotenv.config({ path: './config/.env' });
-const allowedUsers = JSON.parse(readFileSync('./config/user.json', 'utf-8')).allowed_users;
+const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
+const allowedUsers = config.allowed_users;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 const MAX_FILE_MB = Number(process.env.MAX_FILE_MB || 0);
 async function sendLog(interaction, message) {
@@ -92,7 +93,7 @@ export const command = {
             await sendLog(interaction, `✅ File uploaded by <@${userId}>: ${finalUrl}`);
         }
         catch (err) {
-            console.error("❌ FTP error:", err);
+            console.error('❌ FTP error:', err);
             await interaction.editReply('❌ FTP upload failed.');
             await sendLog(interaction, `❌ FTP error during upload by <@${userId}>`);
         }
@@ -103,5 +104,5 @@ export const command = {
             }
             catch { }
         }
-    }
+    },
 };

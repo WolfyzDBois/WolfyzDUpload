@@ -8,5 +8,5 @@ docker compose build
 echo "🚀 Lancement du bot Discord en arrière-plan..."
 docker compose up -d
 
-echo "📄 Affichage des logs en direct (CTRL+C pour quitter)..."
-docker compose logs -f
+# echo "📄 Affichage des logs en direct (CTRL+C pour quitter)..."
+# docker compose logs -f

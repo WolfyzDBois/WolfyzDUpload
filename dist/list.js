@@ -3,7 +3,8 @@ import { Client as FTPClient } from 'basic-ftp';
 import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
 dotenv.config({ path: './config/.env' });
-const adminList = JSON.parse(readFileSync('./config/admin.json', 'utf-8')).admins;
+const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
+const adminList = config.admins;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 async function sendLog(interaction, message) {
     try {
@@ -33,7 +34,7 @@ export const command = {
     async execute(interaction) {
         if (!adminList.includes(interaction.user.id)) {
             await interaction.reply({
-                content: '❌ You\'re not allowed to use thos command.',
+                content: '❌ You\'re not allowed to use this command.',
                 ephemeral: true,
             });
             return;
@@ -55,7 +56,7 @@ export const command = {
                 .filter(file => file.isFile)
                 .map(file => `${process.env.UPLOAD_DOMAIN}/${file.name}`);
             if (links.length === 0) {
-                await interaction.editReply('Not file found.');
+                await interaction.editReply('No file found.');
                 return;
             }
             let page = 0;
@@ -68,7 +69,7 @@ export const command = {
             });
             collector.on('collect', async (i) => {
                 if (i.user.id !== interaction.user.id) {
-                    await i.reply({ content: '❌ You\'re not allowed to execute this command.', ephemeral: true });
+                    await i.reply({ content: '❌ You\'re not allowed to interact with this.', ephemeral: true });
                     return;
                 }
                 if (i.customId === 'prev')

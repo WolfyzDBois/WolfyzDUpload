@@ -4,9 +4,8 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: './config/.env' });
 
-const adminList = JSON.parse(
-  readFileSync('./config/admin.json', 'utf-8')
-).admins;
+const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
+const adminList = config.admins;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID!;
 
 async function sendLog(interaction: ChatInputCommandInteraction, message: string) {

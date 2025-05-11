@@ -1,8 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { Client as FTPClient } from 'basic-ftp';
-import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
-import path from 'path';
+import dotenv from 'dotenv';
 dotenv.config({ path: './config/.env' });
 const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
 const adminList = config.admins;
@@ -20,22 +19,18 @@ async function sendLog(interaction, message) {
 }
 export const command = {
     data: new SlashCommandBuilder()
-        .setName('delete')
-        .setDescription('Delete a file by its URL (admin only)')
-        .addStringOption(option => option
-        .setName('link')
-        .setDescription('Full URL to the file')
+        .setName('delete_redirect')
+        .setDescription('Delete a redirection (admin only)')
+        .addStringOption(opt => opt.setName('alias')
+        .setDescription('Alias name (e.g., github for /redirect/github)')
         .setRequired(true)),
     async execute(interaction) {
         if (!adminList.includes(interaction.user.id)) {
-            await interaction.reply({
-                content: '❌ You are not authorized to use this command.',
-                ephemeral: true,
-            });
+            await interaction.reply({ content: '❌ You are not authorized.', ephemeral: true });
             return;
         }
-        const url = interaction.options.getString('link', true);
-        const filename = path.basename(new URL(url).pathname);
+        const alias = interaction.options.getString('alias', true);
+        const filename = `redirect/${alias}.html`;
         const ftp = new FTPClient();
         ftp.ftp.verbose = false;
         try {
@@ -47,18 +42,12 @@ export const command = {
             });
             await ftp.cd(process.env.FTP_DIRECTORY || '/');
             await ftp.remove(filename);
-            await interaction.reply({
-                content: `✅ File \`${filename}\` has been deleted.`,
-                ephemeral: true,
-            });
-            await sendLog(interaction, `🗑️ File deleted by <@${interaction.user.id}>: ${filename}`);
+            await interaction.reply({ content: `🗑️ Redirection \`${alias}\` deleted.`, ephemeral: true });
+            await sendLog(interaction, `🗑️ /delete_redirect by <@${interaction.user.id}> → ${alias}`);
         }
         catch (err) {
-            console.error('FTP delete error:', err);
-            await interaction.reply({
-                content: '❌ Failed to delete file on the FTP server.',
-                ephemeral: true,
-            });
+            console.error('FTP delete redirect error:', err);
+            await interaction.reply({ content: '❌ Failed to delete the redirect.', ephemeral: true });
         }
         finally {
             ftp.close();
