@@ -3,6 +3,18 @@
 ### Commands
 
 /upload with file, or link, and name
+/list
+/delete
+
+/redirect
+/list_redirects
+/delete_redirects
+
+New features : tags
+/create, with embed creation
+/tag with alias
+/tag delete
+/tag list
 
 ### Deploy with Workflows
 
