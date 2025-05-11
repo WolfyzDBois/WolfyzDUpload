@@ -4,6 +4,73 @@
 
 /upload with file, or link, and name
 
+### Deploy with Workflows
+
+
+1. Fork the repository
+
+Click the **"Fork"** button on GitHub.
+
+
+
+2. Set up your VPS
+
+Make sure your server has:
+
+- Docker installed
+- SSH access enabled
+- A directory ready to host the bot (e.g. `~/wolfyzupload`)
+
+3. Generate an SSH key
+
+Run this locally:
+
+```bash
+ssh-keygen -t rsa -b 4096 -C "github-deploy"
+```
+
+Then:
+
+* Add **`~/.ssh/id_rsa.pub`** to `~/.ssh/authorized_keys` on your VPS
+* Add **`~/.ssh/id_rsa`** as a **GitHub Action Secret** named `VPS_SSH_KEY`
+
+
+
+4. Add GitHub secrets
+
+In your forked repo, go to:
+
+**Settings → Secrets and Variables → Actions → New repository secret**
+
+Add:
+
+| Name          | Value                |
+| ------------- | -------------------- |
+| `VPS_HOST`    | Your VPS IP          |
+| `VPS_USER`    | SSH user (e.g. root) |
+| `VPS_SSH_KEY` | Your SSH private key |
+
+---
+
+5. Push your changes
+
+```bash
+git add .
+git commit -m "Update something"
+git push origin main
+```
+
+GitHub will trigger the deploy workflow automatically.
+
+---
+
+## Deployment flow
+
+1. Copy your bot files via `scp`
+2. SSH into the VPS
+3. Run `docker compose down && docker compose build && docker compose up -d`
+
+
 ### Deploy with Docker
 
 ```sh
