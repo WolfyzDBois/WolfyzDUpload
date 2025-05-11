@@ -5,9 +5,10 @@ dotenv.config();
 const commands = [
   new SlashCommandBuilder()
     .setName('upload')
-    .setDescription('Upload un fichier ou une URL vers le FTP')
+    .setDescription('Upload un fichier ou un lien vers le FTP')
     .addAttachmentOption(opt => opt.setName('fichier').setDescription('Fichier à uploader').setRequired(false))
-    .addStringOption(opt => opt.setName('lien').setDescription('URL à uploader').setRequired(false))
+    .addStringOption(opt => opt.setName('lien').setDescription('Lien vers un fichier').setRequired(false))
+    .addStringOption(opt => opt.setName('name').setDescription('Nom du fichier sans extension').setRequired(false))
     .toJSON()
 ];
 

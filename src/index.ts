@@ -4,19 +4,18 @@ const { Client, GatewayIntentBits, MessageFlags } = Discord;
 import dotenv from 'dotenv';
 import ftp from 'basic-ftp';
 import { fetch } from 'undici';
-import { createWriteStream, unlinkSync } from 'fs';
+import { createWriteStream, unlinkSync, readFileSync } from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
-import { readFileSync } from 'fs';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 
 dotenv.config();
 
-// Charger la liste des utilisateurs autorisés
+// Charger les utilisateurs autorisés depuis user.json
 const userConfig = JSON.parse(readFileSync('user.json', 'utf-8'));
 const allowedUsers: string[] = userConfig.allowed_users;
 
@@ -56,6 +55,7 @@ client.on('interactionCreate', async (interaction) => {
 
   const file = typedInteraction.options.getAttachment('fichier');
   const url = typedInteraction.options.getString('lien');
+  const customName = typedInteraction.options.getString('name');
 
   if (!file && !url) {
     await typedInteraction.reply({
@@ -68,8 +68,9 @@ client.on('interactionCreate', async (interaction) => {
   await typedInteraction.deferReply();
 
   const downloadUrl = file?.url ?? url!;
-  const extension = path.extname(file?.name ?? url!) || '.bin';
-  const filename = `upload_${randomUUID().slice(0, 8)}${extension}`;
+  const originalName = file?.name ?? url ?? 'file.unknown';
+  const extension = path.extname(originalName) || '.bin';
+  const filename = `${customName || `upload_${randomUUID().slice(0, 8)}`}${extension}`;
   const tempPath = path.join(tmpdir(), filename);
 
   const res = await fetch(downloadUrl);
