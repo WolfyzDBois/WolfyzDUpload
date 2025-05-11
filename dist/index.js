@@ -14,12 +14,12 @@ client.once('ready', async () => {
     console.log(`✅ Connecté en tant que ${client.user?.tag}`);
     const logChannel = await client.channels.fetch(logChannelId);
     if (logChannel?.isTextBased() && 'send' in logChannel) {
-        await logChannel.send(`✅ Bot démarré en tant que ${client.user?.tag}`);
+        await logChannel.send(`✅ Bot started : ${client.user?.tag}`);
     }
 });
 client.on('guildCreate', async (guild) => {
     if (!servers.includes(guild.id)) {
-        console.log(`❌ Serveur non autorisé : ${guild.name} (${guild.id}). Déconnexion.`);
+        console.log(`❌ Not allowed server : ${guild.name} (${guild.id}). Disconnected.`);
         await guild.leave();
     }
 });
@@ -36,8 +36,8 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
     catch (error) {
-        console.error(`❌ Erreur lors de l'exécution de /${interaction.commandName}`, error);
-        await interaction.reply({ content: '❌ Une erreur est survenue lors de l\'exécution de cette commande.', ephemeral: true });
+        console.error(`❌ Error during execution of command /${interaction.commandName}`, error);
+        await interaction.reply({ content: '❌ Error during execution of this command.', ephemeral: true });
     }
 });
 client.login(token);

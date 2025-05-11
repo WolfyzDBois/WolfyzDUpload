@@ -32,8 +32,8 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN!);
       Routes.applicationCommands(process.env.CLIENT_ID!),
       { body: commands }
     );
-    console.log('✅ Commandes enregistrées avec succès.');
+    console.log('✅ Commands register.');
   } catch (error) {
-    console.error('❌ Échec du déploiement des commandes :', error);
+    console.error('❌ Error (register) :', error);
   }
 })();

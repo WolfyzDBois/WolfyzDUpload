@@ -41,12 +41,12 @@ import {
   export const command = {
     data: new SlashCommandBuilder()
       .setName('list')
-      .setDescription('Lister les fichiers hébergés (admin uniquement)'),
+      .setDescription('List all heberged files (admin only)'),
   
     async execute(interaction: ChatInputCommandInteraction) {
       if (!adminList.includes(interaction.user.id)) {
         await interaction.reply({
-          content: '❌ Vous n’êtes pas autorisé à utiliser cette commande.',
+          content: '❌ You\'re not allowed to use thos command.',
           ephemeral: true,
         });
         return;
@@ -74,7 +74,7 @@ import {
           .map(file => `${process.env.UPLOAD_DOMAIN}/${file.name}`);
   
         if (links.length === 0) {
-          await interaction.editReply('Aucun fichier trouvé.');
+          await interaction.editReply('Not file found.');
           return;
         }
   
@@ -94,7 +94,7 @@ import {
   
         collector.on('collect', async i => {
           if (i.user.id !== interaction.user.id) {
-            await i.reply({ content: '❌ Ce menu n’est pas pour vous.', ephemeral: true });
+            await i.reply({ content: '❌ You\'re not allowed to execute this command.', ephemeral: true });
             return;
           }
   
@@ -112,10 +112,10 @@ import {
           await interaction.editReply({ components: [] });
         });
   
-        await sendLog(interaction, `📂 /list utilisé par <@${interaction.user.id}>`);
+        await sendLog(interaction, `📂 /list used by <@${interaction.user.id}>`);
       } catch (err) {
         console.error('FTP list error:', err);
-        await interaction.editReply('❌ Impossible de lister les fichiers FTP.');
+        await interaction.editReply('❌ Impossible to list FTP files.');
       } finally {
         ftp.close();
       }

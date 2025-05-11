@@ -18,20 +18,20 @@ async function sendLog(interaction, message) {
 export const command = {
     data: new SlashCommandBuilder()
         .setName('stop')
-        .setDescription('Arrête le bot (admin uniquement)'),
+        .setDescription('Stop the bot (admin only)'),
     async execute(interaction) {
         if (!adminList.includes(interaction.user.id)) {
             await interaction.reply({
-                content: '❌ Vous n’êtes pas autorisé à utiliser cette commande.',
+                content: '❌ You are not allowed to use this command.',
                 ephemeral: true,
             });
             return;
         }
         await interaction.reply({
-            content: '🛑 Le bot est en cours d’arrêt...',
+            content: '🛑 Stop ...',
             ephemeral: true,
         });
-        await sendLog(interaction, `🛑 Bot arrêté via /stop par <@${interaction.user.id}>`);
+        await sendLog(interaction, `🛑 Bot stopped via /stop by <@${interaction.user.id}>`);
         process.exit(0);
     },
 };
