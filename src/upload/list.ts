@@ -5,50 +5,53 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ComponentType,
+  ComponentType
 } from 'discord.js';
 import { Client as FTPClient } from 'basic-ftp';
 import dotenv from 'dotenv';
-import { readFileSync } from 'fs';
+import config from '@config';
 
-dotenv.config({ path: './config/.env' });
+dotenv.config({ path: './src/config/.env' });
 
-const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
-const adminList = config.admins;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID!;
+const FTP_DIRECTORY = process.env.FTP_DIRECTORY || '/';
+const UPLOAD_DOMAIN = process.env.UPLOAD_DOMAIN!;
+const PER_PAGE = 20;
 
-async function sendLog(interaction: ChatInputCommandInteraction, message: string) {
-  try {
-    const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
-    if (logChannel?.isTextBased() && 'send' in logChannel) {
-      await logChannel.send(message);
-    }
-  } catch (err) {
-    console.warn('Unable to send log:', err);
-  }
+function createEmbed(links: string[], page: number): EmbedBuilder {
+  const totalPages = Math.ceil(links.length / PER_PAGE);
+  const start = page * PER_PAGE;
+  const currentLinks = links.slice(start, start + PER_PAGE);
+
+  return new EmbedBuilder()
+    .setTitle(`📂 Uploaded Files (Page ${page + 1}/${totalPages})`)
+    .setDescription(currentLinks.map((link, i) => `**${start + i + 1}.** [File](${link})`).join('\n') || '*No files found.*')
+    .setColor(0x3498db)
+    .setTimestamp();
 }
 
-function generateEmbed(links: string[], page: number, perPage: number) {
-  const totalPages = Math.ceil(links.length / perPage);
-  const start = page * perPage;
-  const end = start + perPage;
-  const pageLinks = links.slice(start, end);
-  return new EmbedBuilder()
-    .setTitle(`📂 Liste des fichiers (page ${page + 1}/${totalPages})`)
-    .setDescription(pageLinks.map((link, i) => `**${start + i + 1}.** [Fichier](${link})`).join('\n') || '*Aucun fichier*')
-    .setColor(0x00AEFF);
+async function sendLogEmbed(interaction: ChatInputCommandInteraction, title: string, description: string, color: number) {
+  const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
+  if (logChannel?.isTextBased() && 'send' in logChannel) {
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setColor(color)
+      .setTimestamp();
+    await logChannel.send({ embeds: [embed] });
+  }
 }
 
 export const command = {
   data: new SlashCommandBuilder()
-    .setName('list')
-    .setDescription('List all heberged files (admin only)'),
+    .setName('upload_list')
+    .setDescription('List all uploaded files (admin only)'),
 
   async execute(interaction: ChatInputCommandInteraction) {
-    if (!adminList.includes(interaction.user.id)) {
+    if (!config.admins.includes(interaction.user.id)) {
       await interaction.reply({
-        content: '❌ You\'re not allowed to use this command.',
-        ephemeral: true,
+        content: '❌ You are not allowed to use this command.',
+        ephemeral: true
       });
       return;
     }
@@ -57,68 +60,84 @@ export const command = {
 
     const ftp = new FTPClient();
     ftp.ftp.verbose = false;
-    const perPage = 20;
 
     try {
       await ftp.access({
         host: process.env.FTP_HOST!,
         port: Number(process.env.FTP_PORT!),
         user: process.env.FTP_USER!,
-        password: process.env.FTP_PASS!,
+        password: process.env.FTP_PASS!
       });
 
-      await ftp.cd(process.env.FTP_DIRECTORY || '/');
+      await ftp.cd(FTP_DIRECTORY);
       const files = await ftp.list();
 
       const links = files
-        .filter(file => file.isFile)
-        .map(file => `${process.env.UPLOAD_DOMAIN}/${file.name}`);
+        .filter(f => f.isFile)
+        .map(f => `${UPLOAD_DOMAIN}/${f.name}`)
+        .sort();
 
       if (links.length === 0) {
-        await interaction.editReply('No file found.');
+        await interaction.editReply('❌ No files found on the server.');
         return;
       }
 
       let page = 0;
-      const embed = generateEmbed(links, page, perPage);
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId('prev').setLabel('⬅️').setStyle(ButtonStyle.Primary).setDisabled(true),
-        new ButtonBuilder().setCustomId('next').setLabel('➡️').setStyle(ButtonStyle.Primary).setDisabled(links.length <= perPage)
+        new ButtonBuilder().setCustomId('prev').setLabel('◀️ Previous').setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId('next').setLabel('Next ▶️').setStyle(ButtonStyle.Secondary).setDisabled(links.length <= PER_PAGE)
       );
 
-      const reply = await interaction.editReply({ embeds: [embed], components: [row] });
+      const message = await interaction.editReply({
+        embeds: [createEmbed(links, page)],
+        components: [row]
+      });
 
-      const collector = reply.createMessageComponentCollector({
+      const collector = message.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        time: 60_000,
+        time: 90_000
       });
 
       collector.on('collect', async i => {
         if (i.user.id !== interaction.user.id) {
-          await i.reply({ content: '❌ You\'re not allowed to interact with this.', ephemeral: true });
+          await i.reply({ content: '❌ You cannot interact with this.', ephemeral: true });
           return;
         }
 
         if (i.customId === 'prev') page--;
-        if (i.customId === 'next') page++;
+        else if (i.customId === 'next') page++;
 
-        const newEmbed = generateEmbed(links, page, perPage);
-        row.components[0].setDisabled(page <= 0);
-        row.components[1].setDisabled((page + 1) * perPage >= links.length);
+        row.components[0].setDisabled(page === 0);
+        row.components[1].setDisabled((page + 1) * PER_PAGE >= links.length);
 
-        await i.update({ embeds: [newEmbed], components: [row] });
+        await i.update({
+          embeds: [createEmbed(links, page)],
+          components: [row]
+        });
       });
 
       collector.on('end', async () => {
         await interaction.editReply({ components: [] });
       });
 
-      await sendLog(interaction, `📂 /list used by <@${interaction.user.id}>`);
+      await sendLogEmbed(
+        interaction,
+        '📘 Upload List Accessed',
+        `User <@${interaction.user.id}> accessed the upload list.`,
+        0x95a5a6
+      );
     } catch (err) {
-      console.error('FTP list error:', err);
-      await interaction.editReply('❌ Impossible to list FTP files.');
+      console.error('❌ FTP list error:', err);
+      await interaction.editReply('❌ Failed to fetch file list from FTP.');
+
+      await sendLogEmbed(
+        interaction,
+        '❌ FTP List Error',
+        `An error occurred during file listing by <@${interaction.user.id}>.`,
+        0xe74c3c
+      );
     } finally {
       ftp.close();
     }
-  },
+  }
 };

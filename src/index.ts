@@ -1,22 +1,27 @@
-import { Client, GatewayIntentBits, Interaction, ActivityType, PresenceStatusData, ModalSubmitInteraction } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  Interaction,
+  ModalSubmitInteraction,
+  ActivityType,
+  PresenceStatusData
+} from 'discord.js';
 import dotenv from 'dotenv';
-import { readdirSync, readFileSync } from 'fs';
+import { handleTagCreateModal } from './events/interactionCreate.js';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { handleTagCreateModal } from './events/interactionCreate.js'; // veille à ce que l'extension .js existe à l'exécution
+import { glob } from 'glob';
+import { pathToFileURL, fileURLToPath } from 'url';
+import config from '@config';
 
-dotenv.config({ path: './config/.env' });
+dotenv.config({ path: './src/config/.env' });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
-const allowedServers = config.allowed_servers;
-
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
 const token = process.env.DISCORD_TOKEN!;
 const logChannelId = process.env.LOG_CHANNEL_ID!;
-
 const PRESENCE_STATUS = (process.env.PRESENCE_STATUS || 'online') as PresenceStatusData;
 const ACTIVITY_TYPE = (process.env.ACTIVITY_TYPE || 'playing').toLowerCase();
 const ACTIVITY_NAME = process.env.ACTIVITY_NAME || '';
@@ -50,7 +55,7 @@ client.once('ready', async () => {
 });
 
 client.on('guildCreate', async (guild) => {
-  if (!allowedServers.includes(guild.id)) {
+  if (!config.allowed_servers.includes(guild.id)) {
     console.log(`❌ Not allowed server: ${guild.name} (${guild.id}). Leaving...`);
     await guild.leave();
   }
@@ -64,22 +69,44 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 
   if (!interaction.isChatInputCommand()) return;
 
-  const commandPath = path.join(__dirname, `${interaction.commandName}.js`);
-  try {
-    const command = await import(`file://${commandPath}`);
-    await command.command.execute(interaction);
+  // Recherche dynamique du fichier
+  const matches = glob.sync(`**/${interaction.commandName}.js`, {
+    cwd: path.resolve(__dirname),
+    absolute: true,
+  });
 
-    const logChannel = await client.channels.fetch(logChannelId);
-    if (logChannel?.isTextBased() && 'send' in logChannel) {
-      await logChannel.send(`📩 Command \`/${interaction.commandName}\` used by <@${interaction.user.id}>`);
+  if (matches.length === 0) {
+    console.error(`❌ Command module for /${interaction.commandName} not found.`);
+    await interaction.reply({
+      content: '❌ This command is not available on the bot.',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const commandPath = matches[0];
+  console.log(`📦 Trying to load command module: ${commandPath}`);
+
+  try {
+    const command = await import(pathToFileURL(commandPath).href);
+
+    if (!command?.command?.execute) {
+      throw new Error('Invalid command module structure');
     }
+
+    await command.command.execute(interaction);
+    console.log(`🚀 Successfully executed /${interaction.commandName}`);
   } catch (error) {
-    console.error(`❌ Error during execution of command /${interaction.commandName}`, error);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: '❌ Error during execution of this command.', ephemeral: true });
-    } else {
-      await interaction.reply({ content: '❌ Error during execution of this command.', ephemeral: true });
-    }
+    console.error(`❌ Error during execution of /${interaction.commandName}:`, error);
+
+    const replyMethod = interaction.replied || interaction.deferred
+      ? interaction.followUp.bind(interaction)
+      : interaction.reply.bind(interaction);
+
+    await replyMethod({
+      content: '❌ Error during execution of this command.',
+      ephemeral: true,
+    });
   }
 });
 

@@ -1,44 +1,48 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import {
+  ChatInputCommandInteraction,
+  SlashCommandBuilder,
+  EmbedBuilder
+} from 'discord.js';
 import { Client as FTPClient } from 'basic-ftp';
 import dotenv from 'dotenv';
-import { readFileSync } from 'fs';
 import path from 'path';
+import config from '@config';
 
-dotenv.config({ path: './config/.env' });
+dotenv.config({ path: './src/config/.env' });
 
-const config = JSON.parse(
-  readFileSync('./config/config.json', 'utf-8')
-);
-const adminList = config.admins;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID!;
+const FTP_DIRECTORY = process.env.FTP_DIRECTORY || '/';
 
-async function sendLog(interaction: ChatInputCommandInteraction, message: string) {
-  try {
-    const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
-    if (logChannel?.isTextBased() && 'send' in logChannel) {
-      await logChannel.send(message);
-    }
-  } catch (err) {
-    console.warn('Unable to send log:', err);
+async function sendLogEmbed(interaction: ChatInputCommandInteraction, title: string, description: string, color: number) {
+  const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
+  if (logChannel?.isTextBased() && 'send' in logChannel) {
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setColor(color)
+      .setTimestamp();
+    await logChannel.send({ embeds: [embed] });
   }
 }
 
 export const command = {
   data: new SlashCommandBuilder()
-    .setName('delete')
-    .setDescription('Delete a file by its URL (admin only)')
+    .setName('upload_delete')
+    .setDescription('Delete a file from the FTP server (admin only)')
     .addStringOption(option =>
       option
         .setName('link')
-        .setDescription('Full URL to the file')
+        .setDescription('The full URL to the file to delete')
         .setRequired(true)
     ),
 
   async execute(interaction: ChatInputCommandInteraction) {
-    if (!adminList.includes(interaction.user.id)) {
+    const userId = interaction.user.id;
+
+    if (!config.admins.includes(userId)) {
       await interaction.reply({
-        content: '❌ You are not authorized to use this command.',
-        ephemeral: true,
+        content: '❌ You are not allowed to use this command.',
+        ephemeral: true
       });
       return;
     }
@@ -52,27 +56,41 @@ export const command = {
     try {
       await ftp.access({
         host: process.env.FTP_HOST!,
-        port: Number(process.env.FTP_PORT!),
+        port: Number(process.env.FTP_PORT || 21),
         user: process.env.FTP_USER!,
         password: process.env.FTP_PASS!,
+        secure: false
       });
 
-      await ftp.cd(process.env.FTP_DIRECTORY || '/');
+      await ftp.cd(FTP_DIRECTORY);
       await ftp.remove(filename);
 
       await interaction.reply({
-        content: `✅ File \`${filename}\` has been deleted.`,
-        ephemeral: true,
+        content: `✅ File \`${filename}\` has been deleted from the server.`,
+        ephemeral: true
       });
-      await sendLog(interaction, `🗑️ File deleted by <@${interaction.user.id}>: ${filename}`);
+
+      await sendLogEmbed(
+        interaction,
+        '🗑️ File Deleted',
+        `File \`${filename}\` was deleted by <@${userId}>.`,
+        0xe67e22
+      );
     } catch (err) {
-      console.error('FTP delete error:', err);
+      console.error('❌ FTP delete error:', err);
       await interaction.reply({
-        content: '❌ Failed to delete file on the FTP server.',
-        ephemeral: true,
+        content: '❌ Failed to delete the file on the FTP server.',
+        ephemeral: true
       });
+
+      await sendLogEmbed(
+        interaction,
+        '❌ Deletion Failed',
+        `An error occurred while <@${userId}> tried to delete \`${filename}\`.`,
+        0xe74c3c
+      );
     } finally {
       ftp.close();
     }
-  },
+  }
 };

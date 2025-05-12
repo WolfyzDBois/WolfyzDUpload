@@ -10,5 +10,9 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "resolveJsonModule": true,
+    "baseUrl": "./src",
+    "paths": {
+      "@config": ["config/config.ts"]
+    }
   }
 }

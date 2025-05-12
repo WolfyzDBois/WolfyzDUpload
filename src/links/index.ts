@@ -1,18 +1,19 @@
 import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
+  EmbedBuilder
 } from 'discord.js';
 import { Client as FTPClient } from 'basic-ftp';
-import { readFileSync } from 'fs';
 import { Readable } from 'stream';
 import dotenv from 'dotenv';
+import config from '@config';
 
-dotenv.config({ path: './config/.env' });
+dotenv.config({ path: './src/config/.env' });
 
-const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
 const adminList = config.admins;
-const allowedRedirectServers = config.allowed_redirect;
+const allowedServers = config.allowed_redirect;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID!;
+const FTP_DIR = process.env.FTP_DIR || '/redirect';
 
 function createRedirectHTML(targetUrl: string): string {
   return `<!DOCTYPE html>
@@ -27,21 +28,22 @@ function createRedirectHTML(targetUrl: string): string {
 </html>`;
 }
 
-async function sendLog(interaction: ChatInputCommandInteraction, message: string) {
-  try {
-    const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
-    if (logChannel?.isTextBased() && 'send' in logChannel) {
-      await logChannel.send(message);
-    }
-  } catch (err) {
-    console.warn('Unable to send log:', err);
+async function sendLogEmbed(interaction: ChatInputCommandInteraction, title: string, description: string, color: number) {
+  const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
+  if (logChannel?.isTextBased() && 'send' in logChannel) {
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setColor(color)
+      .setTimestamp();
+    await logChannel.send({ embeds: [embed] });
   }
 }
 
 export const command = {
   data: new SlashCommandBuilder()
-    .setName('redirect')
-    .setDescription('Create a short redirection link (admin only)')
+    .setName('links')
+    .setDescription('Create a short redirection (admin only)')
     .addStringOption(option =>
       option
         .setName('from')
@@ -51,7 +53,7 @@ export const command = {
     .addStringOption(option =>
       option
         .setName('to')
-        .setDescription('The alias (e.g., github becomes i.domain.fr/redirect/github)')
+        .setDescription('The name of the redirection')
         .setRequired(true)
     ),
 
@@ -59,7 +61,7 @@ export const command = {
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
 
-    if (!adminList.includes(userId) || !guildId || !allowedRedirectServers.includes(guildId)) {
+    if (!adminList.includes(userId) || !guildId || !allowedServers.includes(guildId)) {
       await interaction.reply({
         content: '❌ You are not authorized to use this command on this server.',
         ephemeral: true,
@@ -68,8 +70,7 @@ export const command = {
     }
 
     const targetUrl = interaction.options.getString('from', true);
-    const alias = interaction.options.getString('to', true);
-    const filename = `${alias}.html`;
+    const name = interaction.options.getString('to', true);
     const htmlContent = createRedirectHTML(targetUrl);
 
     await interaction.deferReply({ ephemeral: true });
@@ -85,16 +86,28 @@ export const command = {
         password: process.env.FTP_PASS!,
       });
 
-      await ftp.cd(process.env.FTP_DIR || '/');
-      await ftp.ensureDir('redirect');        // Change to redirect folder
-      await ftp.uploadFrom(Readable.from([htmlContent]), filename); // Don't double "redirect"
+      await ftp.ensureDir(FTP_DIR);
+      await ftp.uploadFrom(Readable.from([htmlContent]), `${FTP_DIR}/${name}.html`);
 
-      const shortUrl = `${process.env.UPLOAD_DOMAIN}/redirect/${alias}`;
+      const shortUrl = `${process.env.UPLOAD_DOMAIN}/redirect/${name}`;
       await interaction.editReply(`✅ Redirection created: ${shortUrl}`);
-      await sendLog(interaction, `🔗 /redirect by <@${userId}> → ${shortUrl} → ${targetUrl}`);
+
+      await sendLogEmbed(
+        interaction,
+        '🔗 Redirection Created',
+        `<@${userId}> created a redirect:\n• **From**: ${shortUrl}\n• **To**: ${targetUrl}`,
+        0x2ecc71
+      );
     } catch (err) {
-      console.error('FTP redirect error:', err);
+      console.error('❌ FTP redirect error:', err);
       await interaction.editReply('❌ Failed to create redirect file.');
+
+      await sendLogEmbed(
+        interaction,
+        '❌ Redirection Error',
+        `An error occurred during /links by <@${userId}>`,
+        0xe74c3c
+      );
     } finally {
       ftp.close();
     }

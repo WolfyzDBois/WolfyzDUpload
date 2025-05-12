@@ -1,21 +1,21 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { readFileSync } from 'fs';
+import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import dotenv from 'dotenv';
+import config from '@config';
 
-dotenv.config({ path: './config/.env' });
+dotenv.config({ path: './src/config/.env' });
 
-const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
 const adminList = config.admins;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID!;
 
-async function sendLog(interaction: ChatInputCommandInteraction, message: string) {
-  try {
-    const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
-    if (logChannel?.isTextBased() && 'send' in logChannel) {
-      await logChannel.send(message);
-    }
-  } catch (err) {
-    console.warn('Unable to send log:', err);
+async function sendLogEmbed(interaction: ChatInputCommandInteraction, title: string, description: string, color: number) {
+  const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
+  if (logChannel?.isTextBased() && 'send' in logChannel) {
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setColor(color)
+      .setTimestamp();
+    await logChannel.send({ embeds: [embed] });
   }
 }
 
@@ -25,20 +25,28 @@ export const command = {
     .setDescription('Stop the bot (admin only)'),
 
   async execute(interaction: ChatInputCommandInteraction) {
-    if (!adminList.includes(interaction.user.id)) {
+    const userId = interaction.user.id;
+
+    if (!adminList.includes(userId)) {
       await interaction.reply({
-        content: '❌ You are not allowed to use this command.',
+        content: '❌ You are not authorized to use this command.',
         ephemeral: true,
       });
       return;
     }
 
     await interaction.reply({
-      content: '🛑 Stop ...',
+      content: '🛑 Stopping the bot...',
       ephemeral: true,
     });
 
-    await sendLog(interaction, `🛑 Bot stopped via /stop by <@${interaction.user.id}>`);
+    await sendLogEmbed(
+      interaction,
+      '🛑 Bot Shutdown',
+      `Bot was stopped via \`/stop\` by <@${userId}>.`,
+      0x3498db
+    );
+
     process.exit(0);
   },
 };

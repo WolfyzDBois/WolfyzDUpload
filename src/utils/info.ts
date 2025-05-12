@@ -3,13 +3,12 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
 } from 'discord.js';
-import { readFileSync } from 'fs';
+import config from '../config/config.js';
 import { Client as FTPClient } from 'basic-ftp';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: './config/.env' });
+dotenv.config({ path: './src/config/.env' });
 
-const config = JSON.parse(readFileSync('./config/config.json', 'utf-8'));
 const admins = config.admins;
 const users = config.allowed_users;
 const redirectUsers = config.allowed_redirect;
@@ -75,7 +74,7 @@ export const command = {
       const allFiles = await ftp.list();
       uploadCount = allFiles.filter(f => f.isFile && !f.name.endsWith('.html')).length;
 
-      await ftp.cd('redirect').catch(() => {}); // might not exist
+      await ftp.cd('redirect').catch(() => {});
       const redirectFiles = await ftp.list().catch(() => []);
       redirectCount = redirectFiles.filter(f => f.isFile).length;
 

@@ -1,13 +1,17 @@
-import { ModalSubmitInteraction } from 'discord.js';
+import { ModalSubmitInteraction, EmbedBuilder } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import ftp from 'basic-ftp';
+import dotenv from 'dotenv';
 
-const logChannelId = process.env.LOG_CHANNEL_ID!;
-const ftpHost = "ftp.wolfyz.fr";
-const ftpUser = "u266426828.upload";
-const ftpPassword = "Mis45tig9ri!";
-const remoteTagsDir = "/tags";
+dotenv.config({ path: './src/config/.env' });
+
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID!;
+const FTP_HOST = process.env.FTP_HOST!;
+const FTP_USER = process.env.FTP_USER!;
+const FTP_PASS = process.env.FTP_PASS!;
+const FTP_DIR = process.env.FTP_DIRECTORY || '/tags';
+const TEMP_DIR = path.resolve('./temp-tags');
 
 export async function handleTagCreateModal(interaction: ModalSubmitInteraction) {
   if (interaction.customId !== 'tag_create_modal') return;
@@ -21,51 +25,65 @@ export async function handleTagCreateModal(interaction: ModalSubmitInteraction) 
   const aliasRegex = /^[a-z0-9_]+$/;
   if (!aliasRegex.test(alias)) {
     return await interaction.reply({
-      content: '❌ Invalid alias. Use only lowercase letters, numbers, and underscores.',
-      ephemeral: true
+      content: '❌ Invalid name. Use only lowercase letters, numbers, and underscores.',
+      ephemeral: true,
     });
   }
 
-  const tempDir = path.resolve('./temp-tags');
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-
-  const filePath = path.join(tempDir, `${alias}.json`);
+  if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
+  const filePath = path.join(TEMP_DIR, `${alias}.json`);
   const tagData = { embed: isEmbed, title, color, markdown };
-
   fs.writeFileSync(filePath, JSON.stringify(tagData, null, 2));
 
-  // FTP upload
   const client = new ftp.Client();
   client.ftp.verbose = false;
 
   try {
     await client.access({
-      host: ftpHost,
-      user: ftpUser,
-      password: ftpPassword,
-      secure: false
+      host: FTP_HOST,
+      user: FTP_USER,
+      password: FTP_PASS,
+      port: Number(process.env.FTP_PORT || 21),
+      secure: false,
     });
 
-    await client.ensureDir(remoteTagsDir);
-    await client.uploadFrom(filePath, `${remoteTagsDir}/${alias}.json`);
+    await client.ensureDir(FTP_DIR);
+    await client.uploadFrom(filePath, `${FTP_DIR}/${alias}.json`);
+
     await interaction.reply({
-      content: `✅ Tag \`${alias}\` has been successfully created and uploaded.`,
-      ephemeral: true
+      content: `✅ Tag \`${alias}\` was successfully created and uploaded.`,
+      ephemeral: true,
     });
 
-    // Logging
-    const logChannel = await interaction.client.channels.fetch(logChannelId);
+    const embed = new EmbedBuilder()
+      .setTitle('📌 Tag Created')
+      .setDescription(`Tag \`${alias}\` created by <@${interaction.user.id}>`)
+      .setColor(0x2ecc71)
+      .setTimestamp();
+
+    const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
     if (logChannel?.isTextBased() && 'send' in logChannel) {
-      await logChannel.send(`📌 Tag \`${alias}\` was created by <@${interaction.user.id}>`);
+      await logChannel.send({ embeds: [embed] });
     }
   } catch (err) {
-    console.error('❌ FTP error:', err);
+    console.error('❌ FTP upload error:', err);
     await interaction.reply({
       content: '❌ Failed to upload the tag to the server.',
-      ephemeral: true
+      ephemeral: true,
     });
+
+    const embed = new EmbedBuilder()
+      .setTitle('❌ Tag Upload Error')
+      .setDescription(`An error occurred while uploading \`${alias}\` by <@${interaction.user.id}>.`)
+      .setColor(0xe74c3c)
+      .setTimestamp();
+
+    const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID);
+    if (logChannel?.isTextBased() && 'send' in logChannel) {
+      await logChannel.send({ embeds: [embed] });
+    }
   } finally {
     client.close();
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Clean local temp
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 }
